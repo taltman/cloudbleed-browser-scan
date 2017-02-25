@@ -1,0 +1,180 @@
+#!/bin/bash
+## -*-shell-*-
+
+#### cloudbleed-browser-scan
+##
+## This script is designed to make it easy to scan your browser history
+## to search for sites potentially affected by CloudBleed.
+##
+## More on CloudBleed:
+## https://en.wikipedia.org/wiki/Cloudbleed
+##
+## This Git repo has the following essential Git repo as a submodule.
+## It provides a curated list of potentially-affected sites:
+## https://github.com/pirate/sites-using-cloudflare
+
+### Parameters:
+run_dir="$PWD"
+temp_dir="`mktemp -d /tmp/cloudbleed-browser-scan.XXX`"
+
+### Set-up:
+mkdir -p $temp_dir/browser-files
+
+
+### Function:
+
+function extractUrlsPlacesSqlite () {
+
+    local outfile="$1"
+    local DBpath="$2"
+    local browserName="$3"
+
+    sqlite3 $DBpath <<EOF
+.mode tabs
+.output $outfile
+select "$browserName", url, visit_count, title, last_visit_date from moz_places;    	    
+EOF
+    
+}
+
+function extractUrlsChromium () {
+
+    local configPath="$1"
+    local browserName="$2"
+    
+    if [ -e "$configPath/Default/History" ]
+    then
+
+	echo "Foo! $1 $2"
+	
+	## This is necessary, because the Chromium SQLite databases are locked in their native
+	## directory, and copying them breaks the lock on the copy:
+	cp "$configPath"/Default/History* $temp_dir/browser-files
+	
+	pushd $temp_dir/browser-files > /dev/null
+	
+	out_file="${browserName}-urls.txt"
+	sqlite3 History <<EOF
+.mode tabs	
+.output $out_file
+select "$browserName", url, visit_count, title, last_visit_time from urls;
+EOF
+       
+	popd > /dev/null
+
+	rm -f $temp_dir/browser-files/History*
+    fi
+
+}
+
+## Firefox:
+if [ -e $HOME/Library/Application\ Support/Firefox/Profiles ]
+then
+    pushd $HOME/Library/Application\ Support/Firefox/Profiles > /dev/null
+    
+    for profile in `ls`
+    do
+	
+	extractUrlsPlacesSqlite \
+	    "$temp_dir/browser-files/${profile}_firefox-urls.txt" \
+	    $profile/places.sqlite \
+	    Firefox
+    
+    done
+
+    popd > /dev/null
+
+fi
+
+
+## Tor Browser
+if [ -e $HOME/Library/Application\ Support/TorBrowser-Data/Browser ]
+then
+    pushd $HOME/Library/Application\ Support/TorBrowser-Data/Browser > /dev/null
+    
+    for profile in `awk -F= '$1=="Path" { print $2}' profiles.ini`
+    do
+	extractUrlsPlacesSqlite \
+	    "$temp_dir/browser-files/${profile}_torbrowser-urls.txt" \
+	    $profile/places.sqlite \
+	    TorBrowser
+	
+    done
+
+    popd > /dev/null
+
+fi
+
+
+
+## Chromium:
+extractUrlsChromium \
+    "$HOME/Library/Application Support/Chromium" \
+    Chromium
+
+## Chrome:
+extractUrlsChromium \
+    "$HOME/Library/Application Support/Google/Chrome" \
+    Chrome
+
+## Safari:
+
+if [ -e $HOME/Library/Safari ]
+then
+    pushd $HOME/Library/Safari > /dev/null
+    
+    out_file="$temp_dir/browser-files/safari-urls.txt"
+    
+    ## With some joins, I can derive the title and the last visit date, but punting for now:
+    sqlite3 History.db <<EOF
+.mode tabs
+.output $out_file
+select "Safari", url, visit_count from history_items;
+EOF
+
+    popd > /dev/null
+fi
+
+## Check local browser URLs against CloudFlare checklist:
+
+pushd $temp_dir/browser-files > /dev/null
+
+awk -F'\t' -f <( cat <<'EOF'
+BEGIN { print "Loading CloudFlare domain list..." > "/dev/stderr" }
+NR==FNR { cf_domains[$1]; count++; next }
+FNR!=NR && FNR==1 && bit==0 { print "Loaded " count " domains." > "/dev/stderr"; bit=1 }
+(FNR%100000)==0 { print FNR " browser URLs checked." > "/dev/stderr" }
+{ 
+  browser_domains++
+  split($2,url_parts,"/")
+
+  domain=url_parts[3]
+
+  while(index(domain,".")) {
+    if ( domain in cf_domains ) {
+      visited_cf_domains[domain] 
+      domain = ""
+    }
+    else
+      domain = substr(domain,(index(domain,".")+1))
+  }
+}
+END {
+  
+  for(domain in visited_cf_domains) {
+    visited_domain_num++
+    print domain
+  }
+  print "Found " visited_domain_num " CloudFlare-associated domains out of " browser_domains " domains from your browsers." > "/dev/stderr"
+
+}
+EOF
+	       ) \
+		   $run_dir/sites-using-cloudflare/sorted_unique_cf.txt \
+		   *-urls.txt
+
+popd > /dev/null
+
+
+### Clean-up:
+rm -rf /tmp/cloudbleed-browser-scan*
