@@ -44,8 +44,6 @@ function extractUrlsChromium () {
     
     if [ -e "$configPath/Default/History" ]
     then
-
-	echo "Foo! $1 $2"
 	
 	## This is necessary, because the Chromium SQLite databases are locked in their native
 	## directory, and copying them breaks the lock on the copy:
