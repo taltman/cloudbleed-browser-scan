@@ -50,7 +50,40 @@ cd cloudbleed-browser-scan
 ```
 
 The script prints some helpful messages to STDERR while the script is running.
-You can redirect the list of affected domains from STDOUT.
+You can redirect the list of affected domains from STDOUT. The output
+consists of the following fields:
+
+* URL
+* Number of times visited (summed across all browsers)
+* Date of last visit (most recent across all browsers)
+
+The two additional metadata fields make it very easy to whittle down a
+large list. Here's an example session:
+
+```
+time ./cloudbleed-browser-scan > scan.txt
+Loading CloudFlare domain list...
+Loaded 4287589 domains.
+Found 359 CloudFlare-associated domains out of 66235 domains from your
+browsers.
+awk -F'\t' '$2 > 10 && $3 ~ /201[67]-/' scan.txt | wc -l
+28
+```
+
+The above can read as saying that out of the 4,287,589 domains
+currently associated with CloudFlare, 359 were also found in my
+browsing history of 66,235 domains. If I assume that the current bug
+existed no earlier than 2016, and that I would visits important
+websites more than once a year, I restrict myself to sites that I
+visisted in 2016 and 2017. Furthermore, by eyeballing the `scan.txt`
+list, I noticed that sites that I had visited fewer than ten times
+were sites that did not contain any important information on
+them. Applying these restrictions, I was left with 28 sites to
+scrutinize manually. Of these, twelve are sensitive, and I will
+definitely change my password on them.
+
+Definitely a lot easier than entering in 66,235 domains into a
+Cloudbleed-checking website tool! :-)
 
 
 # Feedback

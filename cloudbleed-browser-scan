@@ -32,11 +32,14 @@ function extractUrlsPlacesSqlite () {
     sqlite3 $DBpath <<EOF
 .mode tabs
 .output $outfile
-select "$browserName", url, visit_count, title, last_visit_date from moz_places;    	    
+select "$browserName", url, visit_count, title, datetime(last_visit_date/1000000,'unixepoch','localtime')
+from moz_places;    	    
 EOF
     
 }
 
+## Chrom* date manipulation thanks to:
+## http://stackoverflow.com/questions/2141537
 function extractUrlsChromium () {
 
     local configPath="$1"
@@ -50,12 +53,13 @@ function extractUrlsChromium () {
 	cp "$configPath"/Default/History* $temp_dir/browser-files
 	
 	pushd $temp_dir/browser-files > /dev/null
-	
-	out_file="${browserName}-urls.txt"
+
+	local offset="11644473600"
+	local out_file="${browserName}-urls.txt"
 	sqlite3 History <<EOF
 .mode tabs	
 .output $out_file
-select "$browserName", url, visit_count, title, last_visit_time from urls;
+select "$browserName", url, visit_count, title, datetime(last_visit_time/1000000-$offset,'unixepoch','localtime') from urls;
 EOF
        
 	popd > /dev/null
@@ -117,6 +121,9 @@ extractUrlsChromium \
 
 ## Safari:
 
+## Safari date manipulation thanks to:
+## https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
+
 if [ -e $HOME/Library/Safari ]
 then
     pushd $HOME/Library/Safari > /dev/null
@@ -127,7 +134,9 @@ then
     sqlite3 History.db <<EOF
 .mode tabs
 .output $out_file
-select "Safari", url, visit_count from history_items;
+select "Safari", url, visit_count, hv.title, datetime(hv.visit_time + 978307200, 'unixepoch', 'localtime')
+from history_items hi, history_visits hv
+where hv.history_item = hi.id;
 EOF
 
     popd > /dev/null
@@ -138,7 +147,7 @@ fi
 pushd $temp_dir/browser-files > /dev/null
 
 awk -F'\t' -f <( cat <<'EOF'
-BEGIN { print "Loading CloudFlare domain list..." > "/dev/stderr" }
+BEGIN { OFS="\t"; print "Loading CloudFlare domain list..." > "/dev/stderr" }
 NR==FNR { cf_domains[$1]; count++; next }
 FNR!=NR && FNR==1 && bit==0 { print "Loaded " count " domains." > "/dev/stderr"; bit=1 }
 (FNR%100000)==0 { print FNR " browser URLs checked." > "/dev/stderr" }
@@ -151,6 +160,10 @@ FNR!=NR && FNR==1 && bit==0 { print "Loaded " count " domains." > "/dev/stderr";
   while(index(domain,".")) {
     if ( domain in cf_domains ) {
       visited_cf_domains[domain] 
+      
+      if ( last_visit[domain] < $5 )
+        last_visit[domain] = $5
+      num_visits[domain] += $3
       domain = ""
     }
     else
@@ -161,7 +174,7 @@ END {
   
   for(domain in visited_cf_domains) {
     visited_domain_num++
-    print domain
+    print domain, num_visits[domain], last_visit[domain]
   }
   print "Found " visited_domain_num " CloudFlare-associated domains out of " browser_domains " domains from your browsers." > "/dev/stderr"
 
@@ -169,10 +182,11 @@ END {
 EOF
 	       ) \
 		   $run_dir/sites-using-cloudflare/sorted_unique_cf.txt \
-		   *-urls.txt
+		   *-urls.txt \
+		   | sort -n -k 2,2
 
 popd > /dev/null
 
 
 ### Clean-up:
-rm -rf /tmp/cloudbleed-browser-scan*
+#rm -rf /tmp/cloudbleed-browser-scan*
