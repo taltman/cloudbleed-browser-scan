@@ -72,8 +72,8 @@ awk -F'\t' '$2 > 10 && $3 ~ /201[67]-/' scan.txt | wc -l
 
 The above can read as saying that out of the 4,287,589 domains
 currently associated with CloudFlare, 359 were also found in my
-browsing history of 66,235 domains. If I assume that the current bug
-existed no earlier than 2016, and that I would visits important
+browsing history of 66,235 domains. Since the bug is reported as
+having been introduced in September 2016, and since I would visits important
 websites more than once a year, I restrict myself to sites that I
 visisted in 2016 and 2017. Furthermore, by eyeballing the `scan.txt`
 list, I noticed that sites that I had visited fewer than ten times
