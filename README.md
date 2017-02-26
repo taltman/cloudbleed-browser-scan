@@ -80,7 +80,7 @@ list, I noticed that sites that I had visited fewer than ten times
 were sites that did not contain any important information on
 them. Applying these restrictions, I was left with 28 sites to
 scrutinize manually. Of these, twelve are sensitive, and I will
-definitely change my password on them.
+definitely change my passwords there.
 
 Definitely a lot easier than entering in 66,235 domains into a
 Cloudbleed-checking website tool! :-)
