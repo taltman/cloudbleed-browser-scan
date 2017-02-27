@@ -1,5 +1,5 @@
 #!/bin/bash
-## -*-shell-*-
+## -*-shell-script-*-
 
 #### cloudbleed-browser-scan
 ##
@@ -12,31 +12,73 @@
 ## This Git repo has the following essential Git repo as a submodule.
 ## It provides a curated list of potentially-affected sites:
 ## https://github.com/pirate/sites-using-cloudflare
+## 
+## Unfortunately there doesn't seem to be a canonical place where the Tor Browser
+## gets installed on Linux. It will default to checking in /usr/local 
+
 
 ### Parameters:
 run_dir="$PWD"
 temp_dir="`mktemp -d /tmp/cloudbleed-browser-scan.XXX`"
 
+## Browser profile paths:
+firefox_path_mac="$HOME/Library/Application\ Support/Firefox/Profiles"
+firefox_path_linux="$HOME/.mozilla/firefox"
+torbrowser_path_mac="$HOME/Library/Application\ Support/TorBrowser-Data/Browser"
+chromium_path_mac="$HOME/Library/Application Support/Chromium/Default"
+chromium_path_linux="$HOME/config/chromium/Default"
+chrome_path_mac="$HOME/Library/Application Support/Google/Chrome/Default"
+chrome_path_linux="$HOME/.config/google-chrome/Default"
+safari_path="$HOME/Library/Safari"
+abrowser_path="$HOME/.mozilla/abrowser"
+iridium_path="$HOME/.config/iridium/Default"
+
+
 ### Set-up:
 mkdir -p $temp_dir/browser-files
+
+## Setup OS-dependent settings:
+case "$OSTYPE" in 
+    linux-gnu)
+
+	OS="linux"
+	firefox_path="$firefox_path_linux"
+	chromium_path="$chromium_path_linux"
+	chrome_path="$chrome_path_linux"
+
+	## Finding Tor Browser Path:
+	app_path="`find $HOME/.local -name 'start-tor-browser.desktop' -print | head -n 1`" 
+	if [ -e $app_path ]
+	then
+	    echo "$0: Found path to TorBrowser." > /dev/stderr
+	    pushd $HOME/.local/share > /dev/null
+
+	    torbrowser_base_path="`awk -F= '$1 == \"Icon\" { gsub(/browser\/icons\/.*.png/,\"\",$2); print $2 }' $app_path`"
+            torbrowser_path="$torbrowser_base_path/TorBrowser/Data/Browser"
+
+            popd > /dev/null
+	else
+	    echo "$0 warning: Unable to find path to TorBrowser." > /dev/stderr
+	fi
+
+	;;
+
+    darwin*)
+	OS="darwin"
+	firefox_path="$firefox_path_mac"
+	torbrowser_path="$torbrowser_path_mac"
+	chromium_path="$chromium_path_mac"
+	chrome_path="$chrome_path_mac"
+	;;
+    
+    *)
+	    echo "$0: Error, I don't recognize the OS type, exiting!"
+	    exit 1
+esac
 
 
 ### Function:
 
-function extractUrlsPlacesSqlite () {
-
-    local outfile="$1"
-    local DBpath="$2"
-    local browserName="$3"
-
-    sqlite3 $DBpath <<EOF
-.mode tabs
-.output $outfile
-select "$browserName", url, visit_count, title, datetime(last_visit_date/1000000,'unixepoch','localtime')
-from moz_places;    	    
-EOF
-    
-}
 
 ## Chrom* date manipulation thanks to:
 ## http://stackoverflow.com/questions/2141537
@@ -45,12 +87,12 @@ function extractUrlsChromium () {
     local configPath="$1"
     local browserName="$2"
     
-    if [ -e "$configPath/Default/History" ]
+    if [ -e "$configPath/History" ]
     then
-	
+	echo "$0: Found path to $browserName." > /dev/stderr	
 	## This is necessary, because the Chromium SQLite databases are locked in their native
 	## directory, and copying them breaks the lock on the copy:
-	cp "$configPath"/Default/History* $temp_dir/browser-files
+	cp "$configPath"/History* $temp_dir/browser-files
 	
 	pushd $temp_dir/browser-files > /dev/null
 
@@ -65,68 +107,101 @@ EOF
 	popd > /dev/null
 
 	rm -f $temp_dir/browser-files/History*
+    else
+	echo "$0 warning: Unable to find path to $browserName." > /dev/stderr
     fi
 
 }
 
-## Firefox:
-if [ -e $HOME/Library/Application\ Support/Firefox/Profiles ]
-then
-    pushd $HOME/Library/Application\ Support/Firefox/Profiles > /dev/null
+function extractUrlsFirefox () {
     
-    for profile in `ls`
-    do
+    local profilePath="$1"
+    local browserName="$2"
+    local profile_dirs=""
+
+    ## Firefox:
+    if [ -e "$profilePath" ]
+    then
+
+	echo "$0: Found path to $browserName." > /dev/stderr	
+	pushd "$profilePath" > /dev/null
+
+	if [ -e profiles.ini ]
+	then
+	    profile_dirs="`awk -F= '$1==\"Path\" { print $2}' profiles.ini`"
+	else
+	    profile_dirs="`ls`"
+	fi
+
+	for profile in $profile_dirs
+	do
+	    
+	    local outfile="$temp_dir/browser-files/${profile}_$browserName-urls.txt"
+
+	    sqlite3 $profile/places.sqlite <<EOF
+.mode tabs
+.output $outfile
+select "$browserName", url, visit_count, title, datetime(last_visit_date/1000000,'unixepoch','localtime')
+from moz_places;    	    
+EOF
+
+	    
+	done
 	
-	extractUrlsPlacesSqlite \
-	    "$temp_dir/browser-files/${profile}_firefox-urls.txt" \
-	    $profile/places.sqlite \
-	    Firefox
-    
-    done
+	popd > /dev/null
+	
+    else
+	echo "$0 warning: Unable to find path to $browserName." > /dev/stderr
+    fi
 
-    popd > /dev/null
+}
 
-fi
 
+## Firefox:
+extractUrlsFirefox \
+    $firefox_path \
+    firefox
 
 ## Tor Browser
-if [ -e $HOME/Library/Application\ Support/TorBrowser-Data/Browser ]
-then
-    pushd $HOME/Library/Application\ Support/TorBrowser-Data/Browser > /dev/null
-    
-    for profile in `awk -F= '$1=="Path" { print $2}' profiles.ini`
-    do
-	extractUrlsPlacesSqlite \
-	    "$temp_dir/browser-files/${profile}_torbrowser-urls.txt" \
-	    $profile/places.sqlite \
-	    TorBrowser
-	
-    done
+extractUrlsFirefox \
+    $torbrowser_path \
+    torbrowser
 
-    popd > /dev/null
-
-fi
-
+## Abrowser:
+extractUrlsFirefox \
+    $abrowser_path \
+    abrowser
 
 
 ## Chromium:
 extractUrlsChromium \
-    "$HOME/Library/Application Support/Chromium" \
+    $chromium_path \
     Chromium
 
 ## Chrome:
 extractUrlsChromium \
-    "$HOME/Library/Application Support/Google/Chrome" \
+    $chrome_path \
     Chrome
+
+## Iridium:
+extractUrlsChromium \
+    $iridium_path \
+    Iridium
+
+
+
+
 
 ## Safari:
 
 ## Safari date manipulation thanks to:
 ## https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
 
-if [ -e $HOME/Library/Safari ]
+if [ -e $safari_path ]
 then
-    pushd $HOME/Library/Safari > /dev/null
+
+    echo "$0: Found path to Safari." > /dev/stderr	
+    pushd $safari_path > /dev/null
     
     out_file="$temp_dir/browser-files/safari-urls.txt"
     
@@ -140,7 +215,12 @@ where hv.history_item = hi.id;
 EOF
 
     popd > /dev/null
+
+else
+    echo "$0 warning: Unable to find path to Safari." > /dev/stderr
 fi
+
+
 
 ## Check local browser URLs against CloudFlare checklist:
 
