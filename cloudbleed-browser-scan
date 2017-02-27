@@ -267,7 +267,8 @@ EOF
 	       ) \
 		   $run_dir/sites-using-cloudflare/sorted_unique_cf.txt \
 		   *-urls.txt \
-		   | sort -n -k 2,2
+		   | sort -n -k 2,2 \
+		   | awk -F'\t' '$3 >= "2016-09" || $3 < "2000-01"'
 
 popd > /dev/null
 
