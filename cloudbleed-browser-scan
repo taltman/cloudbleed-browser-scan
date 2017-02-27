@@ -261,17 +261,20 @@ END {
     print domain, num_visits[domain], last_visit[domain]
   }
   print "Found " visited_domain_num " CloudFlare-associated domains out of " browser_domains " domains from your browsers." > "/dev/stderr"
-
+  print "Filtering out sites that have not been visited since before 2016-09, which is when the CloudBleed bug was first introduced." > "/dev/stderr"
 }
 EOF
 	       ) \
 		   $run_dir/sites-using-cloudflare/sorted_unique_cf.txt \
 		   *-urls.txt \
 		   | sort -n -k 2,2 \
-		   | awk -F'\t' '$3 >= "2016-09" || $3 < "2000-01"'
+		   | awk -F'\t' '$3 >= "2016-09" || $3 < "2000-01"' \
+		   | tee $temp_dir/output.txt
+
+echo "There are `awk 'END{ print NR }' $temp_dir/output.txt` sites for you to manually review." > /dev/stderr
 
 popd > /dev/null
 
 
 ### Clean-up:
-#rm -rf /tmp/cloudbleed-browser-scan*
+rm -rf /tmp/cloudbleed-browser-scan*
