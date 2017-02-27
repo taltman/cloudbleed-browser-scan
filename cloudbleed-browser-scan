@@ -19,7 +19,7 @@
 
 ### Parameters:
 run_dir="$PWD"
-temp_dir="`mktemp -d /tmp/cloudbleed-browser-scan.XXX`"
+temp_dir="`mktemp -d $HOME/.cloudbleed-browser-scan.XXX`"
 
 ## Browser profile paths:
 firefox_path_mac="$HOME/Library/Application Support/Firefox/Profiles"
@@ -277,4 +277,4 @@ popd > /dev/null
 
 
 ### Clean-up:
-rm -rf /tmp/cloudbleed-browser-scan*
+rm -rf $HOME/.cloudbleed-browser-scan*
