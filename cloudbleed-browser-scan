@@ -22,9 +22,9 @@ run_dir="$PWD"
 temp_dir="`mktemp -d /tmp/cloudbleed-browser-scan.XXX`"
 
 ## Browser profile paths:
-firefox_path_mac="$HOME/Library/Application\ Support/Firefox/Profiles"
+firefox_path_mac="$HOME/Library/Application Support/Firefox/Profiles"
 firefox_path_linux="$HOME/.mozilla/firefox"
-torbrowser_path_mac="$HOME/Library/Application\ Support/TorBrowser-Data/Browser"
+torbrowser_path_mac="$HOME/Library/Application Support/TorBrowser-Data/Browser"
 chromium_path_mac="$HOME/Library/Application Support/Chromium/Default"
 chromium_path_linux="$HOME/config/chromium/Default"
 chrome_path_mac="$HOME/Library/Application Support/Google/Chrome/Default"
@@ -136,7 +136,7 @@ function extractUrlsFirefox () {
 	for profile in $profile_dirs
 	do
 	    
-	    local outfile="$temp_dir/browser-files/${profile}_$browserName-urls.txt"
+	    local outfile="$temp_dir/browser-files/${profile}_${browserName}-urls.txt"
 
 	    sqlite3 $profile/places.sqlite <<EOF
 .mode tabs
@@ -159,67 +159,71 @@ EOF
 
 ## Firefox:
 extractUrlsFirefox \
-    $firefox_path \
+    "$firefox_path" \
     firefox
 
 ## Tor Browser
 extractUrlsFirefox \
-    $torbrowser_path \
+    "$torbrowser_path" \
     torbrowser
-
-## Abrowser:
-extractUrlsFirefox \
-    $abrowser_path \
-    abrowser
 
 
 ## Chromium:
 extractUrlsChromium \
-    $chromium_path \
+    "$chromium_path" \
     Chromium
 
 ## Chrome:
 extractUrlsChromium \
-    $chrome_path \
+    "$chrome_path" \
     Chrome
 
-## Iridium:
-extractUrlsChromium \
-    $iridium_path \
-    Iridium
+case "$OS" in 
+    linux)
 
+	## Abrowser:
+	extractUrlsFirefox \
+	    "$abrowser_path" \
+	    abrowser
+	
+	## Iridium:
+	extractUrlsChromium \
+	    "$iridium_path" \
+	    Iridium
+	;;
+    darwin)
 
-
-
-
-## Safari:
-
-## Safari date manipulation thanks to:
-## https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
-
-if [ -e $safari_path ]
-then
-
-    echo "$0: Found path to Safari." > /dev/stderr	
-    pushd $safari_path > /dev/null
-    
-    out_file="$temp_dir/browser-files/safari-urls.txt"
-    
-    ## With some joins, I can derive the title and the last visit date, but punting for now:
-    sqlite3 History.db <<EOF
-.mode tabs
+	## Safari:
+	
+	## Safari date manipulation thanks to:
+	## https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
+	
+	if [ -e $safari_path ]
+	then
+	    
+	    echo "$0: Found path to Safari." > /dev/stderr	
+	    pushd $safari_path > /dev/null
+	    
+	    out_file="$temp_dir/browser-files/safari-urls.txt"
+	    
+	    ## With some joins, I can derive the title and the last visit date, but punting for now:
+	    sqlite3 History.db <<EOF
+.mode tabs  
 .output $out_file
 select "Safari", url, visit_count, hv.title, datetime(hv.visit_time + 978307200, 'unixepoch', 'localtime')
 from history_items hi, history_visits hv
 where hv.history_item = hi.id;
 EOF
 
-    popd > /dev/null
+	    popd > /dev/null
+	    
+	else
+	    echo "$0 warning: Unable to find path to Safari." > /dev/stderr
+	fi
 
-else
-    echo "$0 warning: Unable to find path to Safari." > /dev/stderr
-fi
+	;;
 
+esac
 
 
 ## Check local browser URLs against CloudFlare checklist:
