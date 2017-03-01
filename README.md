@@ -89,3 +89,8 @@ Cloudbleed-checking website tool! :-)
 # Feedback
 
 Please feel free to file issues, and to fork & send me pull requests. Thanks!
+
+# Acknowledgements
+
+Thank you to the following people:
+* axelsimon for suggesting to remove the dependency on having a GitHub account
