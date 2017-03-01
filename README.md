@@ -61,23 +61,23 @@ The two additional metadata fields make it very easy to whittle down a
 large list. Here's an example session:
 
 ```
-time ./cloudbleed-browser-scan > scan.txt
+> time ./cloudbleed-browser-scan > scan.txt
 Loading CloudFlare domain list...
 Loaded 4287589 domains.
 Found 359 CloudFlare-associated domains out of 66235 domains from your
 browsers.
-awk -F'\t' '$2 > 10 && $3 ~ /201[67]-/' scan.txt | wc -l
+
+> awk -F'\t' '$2 > 10' scan.txt | wc -l
 28
 ```
 
 The above can read as saying that out of the 4,287,589 domains
 currently associated with CloudFlare, 359 were also found in my
 browsing history of 66,235 domains. Since the bug is reported as
-having been introduced in September 2016, and since I would visits important
-websites more than once a year, I restrict myself to sites that I
-visisted in 2016 and 2017. Furthermore, by eyeballing the `scan.txt`
-list, I noticed that sites that I had visited fewer than ten times
-were sites that did not contain any important information on
+having been introduced in September 2016, the output is restricted by
+default to sites visisted afterwards. Furthermore, by eyeballing the
+`scan.txt` list, I noticed that sites that I had visited fewer than
+ten times were sites that did not contain any important information on
 them. Applying these restrictions, I was left with 28 sites to
 scrutinize manually. Of these, twelve are sensitive, and I will
 definitely change my passwords there.
