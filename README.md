@@ -44,7 +44,7 @@ Note that this Git repo has the `sites-using-cloudflare` repo as a submodule,
 so do note the `--recursive` option to `git clone`:
 
 ```
-git clone --recursive git@github.com:taltman/cloudbleed-browser-scan.git
+git clone --recursive https://github.com/taltman/cloudbleed-browser-scan.git
 cd cloudbleed-browser-scan
 ./cloudbleed-browser-scan
 ```
